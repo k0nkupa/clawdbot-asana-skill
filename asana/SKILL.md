@@ -56,9 +56,50 @@ List workspaces:
 node asana/scripts/asana_api.mjs workspaces
 ```
 
-Create a task (minimal):
+List projects in a workspace:
 ```bash
-node asana/scripts/asana_api.mjs create-task --workspace <gid> --name "Test task" --notes "from clawdbot"
+node asana/scripts/asana_api.mjs projects --workspace <workspace_gid>
+```
+
+List tasks in a project:
+```bash
+node asana/scripts/asana_api.mjs tasks-in-project --project <project_gid>
+```
+
+List tasks assigned to me (workspace required by Asana):
+```bash
+node asana/scripts/asana_api.mjs tasks-assigned --workspace <workspace_gid> --assignee me
+```
+
+Search tasks (advanced search):
+```bash
+node asana/scripts/asana_api.mjs search-tasks --workspace <workspace_gid> --text "release" --assignee me
+# also supports convenience: --project <project_gid>
+```
+
+View a task:
+```bash
+node asana/scripts/asana_api.mjs task <task_gid>
+```
+
+Mark a task complete:
+```bash
+node asana/scripts/asana_api.mjs complete-task <task_gid>
+```
+
+Update a task:
+```bash
+node asana/scripts/asana_api.mjs update-task <task_gid> --name "New title" --due_on 2026-02-01
+```
+
+Comment on a task:
+```bash
+node asana/scripts/asana_api.mjs comment <task_gid> --text "Update: shipped"
+```
+
+Create a task:
+```bash
+node asana/scripts/asana_api.mjs create-task --workspace <workspace_gid> --name "Test task" --notes "from clawdbot" --projects <project_gid>
 ```
 
 ## Notes / gotchas

@@ -118,15 +118,15 @@ async function asanaGet(pathname, token, query) {
   return data;
 }
 
-async function asanaPost(pathname, token, body) {
+async function asanaJson(method, pathname, token, body) {
   const url = API_BASE + pathname;
   const res = await fetch(url, {
-    method: 'POST',
+    method,
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(body),
+    body: body === undefined ? undefined : JSON.stringify(body),
   });
   const text = await res.text();
   let data;
@@ -138,6 +138,9 @@ async function asanaPost(pathname, token, body) {
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${JSON.stringify(data)}`);
   return data;
 }
+
+const asanaPost = (pathname, token, body) => asanaJson('POST', pathname, token, body);
+const asanaPut = (pathname, token, body) => asanaJson('PUT', pathname, token, body);
 
 function parseArgs(argv) {
   const [cmd, ...rest] = argv;
@@ -156,23 +159,164 @@ function parseArgs(argv) {
   return { cmd, flags, positionals };
 }
 
+function csvList(v) {
+  if (!v) return [];
+  return String(v)
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+async function resolveMeGid(accessToken) {
+  const me = await asanaGet('/users/me', accessToken);
+  const gid = me?.data?.gid;
+  if (!gid) throw new Error('Could not resolve /users/me gid');
+  return String(gid);
+}
+
+function printJson(x) {
+  console.log(JSON.stringify(x, null, 2));
+}
+
 async function main() {
-  const { cmd, flags } = parseArgs(process.argv.slice(2));
-  if (!cmd) die('Command required: me | workspaces | create-task');
+  const { cmd, flags, positionals } = parseArgs(process.argv.slice(2));
+  if (!cmd) {
+    die(
+      'Command required: me | workspaces | projects | tasks-in-project | tasks-assigned | search-tasks | task | update-task | complete-task | comment | create-task',
+    );
+  }
 
   let tok = loadToken();
   tok = await ensureAccessToken(tok);
   const accessToken = tok.access_token;
 
   if (cmd === 'me') {
-    const r = await asanaGet('/users/me', accessToken);
-    console.log(JSON.stringify(r, null, 2));
+    printJson(await asanaGet('/users/me', accessToken));
     return;
   }
 
   if (cmd === 'workspaces') {
-    const r = await asanaGet('/workspaces', accessToken);
-    console.log(JSON.stringify(r, null, 2));
+    printJson(await asanaGet('/workspaces', accessToken));
+    return;
+  }
+
+  if (cmd === 'projects') {
+    const workspace = flags.workspace;
+    if (!workspace) die('Missing --workspace <workspace_gid>');
+    const optFields = flags.opt_fields || 'gid,name,resource_type,archived,public';
+    const r = await asanaGet('/projects', accessToken, {
+      workspace,
+      opt_fields: optFields,
+      limit: flags.limit || 100,
+    });
+    printJson(r);
+    return;
+  }
+
+  if (cmd === 'tasks-in-project') {
+    const project = flags.project;
+    if (!project) die('Missing --project <project_gid>');
+    const optFields =
+      flags.opt_fields ||
+      'gid,name,completed,completed_at,assignee.name,assignee.gid,due_on,permalink_url,modified_at';
+    const r = await asanaGet('/tasks', accessToken, {
+      project,
+      opt_fields: optFields,
+      limit: flags.limit || 100,
+    });
+    printJson(r);
+    return;
+  }
+
+  if (cmd === 'tasks-assigned') {
+    const workspace = flags.workspace;
+    if (!workspace) die('Missing --workspace <workspace_gid>');
+    const assignee = flags.assignee || 'me';
+    const assigneeGid = assignee === 'me' ? await resolveMeGid(accessToken) : String(assignee);
+    const optFields =
+      flags.opt_fields ||
+      'gid,name,completed,assignee.name,due_on,projects.name,permalink_url,modified_at';
+    const r = await asanaGet('/tasks', accessToken, {
+      workspace,
+      assignee: assigneeGid,
+      // common filter to exclude completed; Asana accepts special values like "now"
+      completed_since: flags.completed_since || 'now',
+      opt_fields: optFields,
+      limit: flags.limit || 100,
+    });
+    printJson(r);
+    return;
+  }
+
+  if (cmd === 'search-tasks') {
+    const workspace = flags.workspace;
+    if (!workspace) die('Missing --workspace <workspace_gid>');
+    // Asana search endpoint uses query params.
+    // Common params: text, assignee.any, projects.any, sections.any, completed, completed_on.after/before, due_on.after/before, etc.
+    const query = { ...flags };
+    delete query._;
+    // normalize a couple convenience flags
+    if (query.assignee === 'me') query['assignee.any'] = await resolveMeGid(accessToken);
+    if (query.project) query['projects.any'] = String(query.project);
+    delete query.assignee;
+    delete query.project;
+
+    const optFields = query.opt_fields || 'gid,name,completed,assignee.name,due_on,permalink_url';
+    delete query.opt_fields;
+
+    const r = await asanaGet(`/workspaces/${workspace}/tasks/search`, accessToken, {
+      ...query,
+      opt_fields: optFields,
+      limit: query.limit || 100,
+    });
+    printJson(r);
+    return;
+  }
+
+  if (cmd === 'task') {
+    const gid = flags.gid || positionals[0];
+    if (!gid) die('Usage: task <task_gid>');
+    const optFields =
+      flags.opt_fields ||
+      'gid,name,completed,assignee.name,assignee.gid,due_on,notes,permalink_url,projects.name,memberships.section.name,modified_at';
+    const r = await asanaGet(`/tasks/${gid}`, accessToken, { opt_fields: optFields });
+    printJson(r);
+    return;
+  }
+
+  if (cmd === 'update-task') {
+    const gid = flags.gid || positionals[0];
+    if (!gid) die('Usage: update-task <task_gid> [--name ...] [--notes ...] [--due_on YYYY-MM-DD] [--completed true|false]');
+
+    const data = {};
+    if (flags.name) data.name = String(flags.name);
+    if (flags.notes) data.notes = String(flags.notes);
+    if (flags.due_on) data.due_on = String(flags.due_on);
+    if (flags.completed !== undefined) data.completed = String(flags.completed) === 'true' || flags.completed === true;
+
+    if (Object.keys(data).length === 0) die('No fields provided to update.');
+
+    const r = await asanaPut(`/tasks/${gid}`, accessToken, { data });
+    printJson(r);
+    return;
+  }
+
+  if (cmd === 'complete-task') {
+    const gid = flags.gid || positionals[0];
+    if (!gid) die('Usage: complete-task <task_gid>');
+    const r = await asanaPut(`/tasks/${gid}`, accessToken, { data: { completed: true } });
+    printJson(r);
+    return;
+  }
+
+  if (cmd === 'comment') {
+    const gid = flags.gid || flags.task || positionals[0];
+    const text = flags.text;
+    if (!gid) die('Usage: comment <task_gid> --text "..."');
+    if (!text) die('Missing --text');
+    // Stories API: POST /tasks/{task_gid}/stories
+    const r = await asanaPost(`/tasks/${gid}/stories`, accessToken, { data: { text: String(text) } });
+    printJson(r);
     return;
   }
 
@@ -185,10 +329,11 @@ async function main() {
 
     const data = { name, notes };
     if (workspace) data.workspace = String(workspace);
-    if (projects) data.projects = String(projects).split(',').map((s) => s.trim()).filter(Boolean);
+    if (projects) data.projects = csvList(projects);
+    if (flags.due_on) data.due_on = String(flags.due_on);
 
     const r = await asanaPost('/tasks', accessToken, { data });
-    console.log(JSON.stringify(r, null, 2));
+    printJson(r);
     return;
   }
 
