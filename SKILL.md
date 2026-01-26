@@ -27,7 +27,7 @@ In Asana Developer Console (My apps):
 
 **Option A (recommended for Clawdbot):** save to a local credentials file:
 ```bash
-node skills/asana/scripts/configure.mjs --client-id "..." --client-secret "..."
+node scripts/configure.mjs --client-id "..." --client-secret "..."
 ```
 This writes `~/.clawdbot/asana/credentials.json`.
 
@@ -40,12 +40,12 @@ From the repo root:
 
 1) Print the authorize URL:
 ```bash
-node asana/scripts/oauth_oob.mjs authorize
+node scripts/oauth_oob.mjs authorize
 ```
 2) Open the printed URL, click **Allow**, copy the code.
 3) Exchange code and save tokens locally:
 ```bash
-node asana/scripts/oauth_oob.mjs token --code "PASTE_CODE_HERE"
+node scripts/oauth_oob.mjs token --code "PASTE_CODE_HERE"
 ```
 
 Tokens are stored at:
@@ -65,78 +65,78 @@ Examples:
 - “list all tasks in <project>” → resolve `<project>` to a project gid, then `tasks-in-project --project <gid>`
 - “list tasks due date from 2026-01-01 to 2026-01-15” → `search-tasks --assignee me --due_on.after 2026-01-01 --due_on.before 2026-01-15`
 
-(Optional helper) `asana/scripts/asana_chat.mjs` can map common phrases to a command skeleton.
+(Optional helper) `scripts/asana_chat.mjs` can map common phrases to a command skeleton.
 
 ## Using the API helper
 
 Sanity check (who am I):
 ```bash
-node asana/scripts/asana_api.mjs me
+node scripts/asana_api.mjs me
 ```
 
 List workspaces:
 ```bash
-node skills/asana/scripts/asana_api.mjs workspaces
+node scripts/asana_api.mjs workspaces
 ```
 
 Set a default workspace (optional):
 ```bash
-node skills/asana/scripts/asana_api.mjs set-default-workspace --workspace <workspace_gid>
+node scripts/asana_api.mjs set-default-workspace --workspace <workspace_gid>
 ```
 After that, you can omit `--workspace` for commands that support it.
 
 List projects in a workspace (explicit):
 ```bash
-node skills/asana/scripts/asana_api.mjs projects --workspace <workspace_gid>
+node scripts/asana_api.mjs projects --workspace <workspace_gid>
 ```
 List projects using the default workspace:
 ```bash
-node skills/asana/scripts/asana_api.mjs projects
+node scripts/asana_api.mjs projects
 ```
 
 List tasks in a project:
 ```bash
-node asana/scripts/asana_api.mjs tasks-in-project --project <project_gid>
+node scripts/asana_api.mjs tasks-in-project --project <project_gid>
 ```
 
 List tasks assigned to me (workspace required by Asana):
 ```bash
-node skills/asana/scripts/asana_api.mjs tasks-assigned --workspace <workspace_gid> --assignee me
+node scripts/asana_api.mjs tasks-assigned --workspace <workspace_gid> --assignee me
 ```
 Or using the default workspace:
 ```bash
-node skills/asana/scripts/asana_api.mjs tasks-assigned --assignee me
+node scripts/asana_api.mjs tasks-assigned --assignee me
 ```
 
 Search tasks (advanced search):
 ```bash
-node asana/scripts/asana_api.mjs search-tasks --workspace <workspace_gid> --text "release" --assignee me
+node scripts/asana_api.mjs search-tasks --workspace <workspace_gid> --text "release" --assignee me
 # also supports convenience: --project <project_gid>
 ```
 
 View a task:
 ```bash
-node asana/scripts/asana_api.mjs task <task_gid>
+node scripts/asana_api.mjs task <task_gid>
 ```
 
 Mark a task complete:
 ```bash
-node asana/scripts/asana_api.mjs complete-task <task_gid>
+node scripts/asana_api.mjs complete-task <task_gid>
 ```
 
 Update a task:
 ```bash
-node asana/scripts/asana_api.mjs update-task <task_gid> --name "New title" --due_on 2026-02-01
+node scripts/asana_api.mjs update-task <task_gid> --name "New title" --due_on 2026-02-01
 ```
 
 Comment on a task:
 ```bash
-node asana/scripts/asana_api.mjs comment <task_gid> --text "Update: shipped"
+node scripts/asana_api.mjs comment <task_gid> --text "Update: shipped"
 ```
 
 Create a task:
 ```bash
-node asana/scripts/asana_api.mjs create-task --workspace <workspace_gid> --name "Test task" --notes "from clawdbot" --projects <project_gid>
+node scripts/asana_api.mjs create-task --workspace <workspace_gid> --name "Test task" --notes "from clawdbot" --projects <project_gid>
 ```
 
 ## Notes / gotchas

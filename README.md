@@ -76,7 +76,7 @@ Recommended “full task management” scope set:
 Save your Asana OAuth client id/secret to a local file:
 
 ```bash
-node asana/scripts/configure.mjs \
+node scripts/configure.mjs \
   --client-id "YOUR_CLIENT_ID" \
   --client-secret "YOUR_CLIENT_SECRET"
 ```
@@ -93,7 +93,7 @@ This writes:
 ### 3.1 Generate the authorize URL
 
 ```bash
-node asana/scripts/oauth_oob.mjs authorize \
+node scripts/oauth_oob.mjs authorize \
   --scope "tasks:read tasks:write projects:read"
 ```
 
@@ -102,7 +102,7 @@ Open the printed URL in your browser, click **Allow**, then copy the code.
 ### 3.2 Exchange the code for tokens
 
 ```bash
-node asana/scripts/oauth_oob.mjs token --code "PASTE_CODE_HERE"
+node scripts/oauth_oob.mjs token --code "PASTE_CODE_HERE"
 ```
 
 This writes:
@@ -115,13 +115,13 @@ This writes:
 List workspaces:
 
 ```bash
-node asana/scripts/asana_api.mjs workspaces
+node scripts/asana_api.mjs workspaces
 ```
 
 Set default workspace:
 
 ```bash
-node asana/scripts/asana_api.mjs set-default-workspace --workspace <workspace_gid>
+node scripts/asana_api.mjs set-default-workspace --workspace <workspace_gid>
 ```
 
 This writes:
@@ -135,42 +135,42 @@ Commands that require a workspace will use the default if `--workspace` is omitt
 
 Who am I:
 ```bash
-node asana/scripts/asana_api.mjs me
+node scripts/asana_api.mjs me
 ```
 
 List projects (default workspace):
 ```bash
-node asana/scripts/asana_api.mjs projects
+node scripts/asana_api.mjs projects
 ```
 
 List tasks assigned to me:
 ```bash
-node asana/scripts/asana_api.mjs tasks-assigned --assignee me
+node scripts/asana_api.mjs tasks-assigned --assignee me
 ```
 
 List all tasks in a project:
 ```bash
-node asana/scripts/asana_api.mjs tasks-in-project --project <project_gid>
+node scripts/asana_api.mjs tasks-in-project --project <project_gid>
 ```
 
 View a task:
 ```bash
-node asana/scripts/asana_api.mjs task <task_gid>
+node scripts/asana_api.mjs task <task_gid>
 ```
 
 Mark complete:
 ```bash
-node asana/scripts/asana_api.mjs complete-task <task_gid>
+node scripts/asana_api.mjs complete-task <task_gid>
 ```
 
 Comment:
 ```bash
-node asana/scripts/asana_api.mjs comment <task_gid> --text "Update: shipped"
+node scripts/asana_api.mjs comment <task_gid> --text "Update: shipped"
 ```
 
 Advanced search (workspace required; default is used if set):
 ```bash
-node asana/scripts/asana_api.mjs search-tasks --text "release" --assignee me
+node scripts/asana_api.mjs search-tasks --text "release" --assignee me
 ```
 
 ---
