@@ -51,6 +51,22 @@ node asana/scripts/oauth_oob.mjs token --code "PASTE_CODE_HERE"
 Tokens are stored at:
 - `~/.clawdbot/asana/token.json`
 
+## Chat usage (support both explicit + natural language)
+
+You can use either:
+- **Explicit commands**: start the message with `/asana ...`
+- **Natural language**: e.g. “list tasks assigned to me”
+
+For Clawdbot, implement the mapping by translating the user request into the appropriate `asana_api.mjs` command.
+
+Examples:
+- `/asana tasks-assigned` → `tasks-assigned --assignee me`
+- “list tasks assigned to me” → `tasks-assigned --assignee me`
+- “list all tasks in <project>” → resolve `<project>` to a project gid, then `tasks-in-project --project <gid>`
+- “list tasks due date from 2026-01-01 to 2026-01-15” → `search-tasks --assignee me --due_on.after 2026-01-01 --due_on.before 2026-01-15`
+
+(Optional helper) `asana/scripts/asana_chat.mjs` can map common phrases to a command skeleton.
+
 ## Using the API helper
 
 Sanity check (who am I):
