@@ -81,10 +81,21 @@ async function postForm(url, params) {
 
 async function main() {
   const { cmd, flags } = parseArgs(process.argv.slice(2));
-  const clientId = process.env.ASANA_CLIENT_ID;
-  const clientSecret = process.env.ASANA_CLIENT_SECRET;
+  let clientId = process.env.ASANA_CLIENT_ID;
+  let clientSecret = process.env.ASANA_CLIENT_SECRET;
+
+  // Optional fallback to ~/.clawdbot/asana/credentials.json
+  try {
+    const credPath = path.join(os.homedir(), '.clawdbot', 'asana', 'credentials.json');
+    const creds = JSON.parse(fs.readFileSync(credPath, 'utf-8'));
+    clientId = clientId || creds.client_id;
+    clientSecret = clientSecret || creds.client_secret;
+  } catch {
+    // ignore
+  }
+
   if (!cmd) die('Command required: authorize | token');
-  if (!clientId) die('Missing ASANA_CLIENT_ID');
+  if (!clientId) die('Missing ASANA_CLIENT_ID (or ~/.clawdbot/asana/credentials.json)');
 
   if (cmd === 'authorize') {
     const scope = flags.scope || 'default';

@@ -22,6 +22,20 @@ function tokenPath() {
   return path.join(os.homedir(), '.clawdbot', 'asana', 'token.json');
 }
 
+function configPath() {
+  return path.join(os.homedir(), '.clawdbot', 'asana', 'config.json');
+}
+
+function loadConfig() {
+  const p = configPath();
+  if (!fs.existsSync(p)) return {};
+  try {
+    return JSON.parse(fs.readFileSync(p, 'utf-8')) || {};
+  } catch {
+    return {};
+  }
+}
+
 function loadToken() {
   const p = tokenPath();
   if (!fs.existsSync(p)) die(`Token file not found: ${p}. Run oauth_oob.mjs token first.`);
@@ -73,10 +87,23 @@ async function ensureAccessToken(token) {
     return token;
   }
 
-  const clientId = process.env.ASANA_CLIENT_ID;
-  const clientSecret = process.env.ASANA_CLIENT_SECRET;
+  let clientId = process.env.ASANA_CLIENT_ID;
+  let clientSecret = process.env.ASANA_CLIENT_SECRET;
   if (!clientId || !clientSecret) {
-    die('Token needs refresh but ASANA_CLIENT_ID/ASANA_CLIENT_SECRET are not set.');
+    // Fallback to ~/.clawdbot/asana/credentials.json
+    try {
+      const credPath = path.join(os.homedir(), '.clawdbot', 'asana', 'credentials.json');
+      const creds = JSON.parse(fs.readFileSync(credPath, 'utf-8'));
+      clientId = clientId || creds.client_id;
+      clientSecret = clientSecret || creds.client_secret;
+    } catch {
+      // ignore
+    }
+  }
+  if (!clientId || !clientSecret) {
+    die(
+      'Token needs refresh but ASANA_CLIENT_ID/ASANA_CLIENT_SECRET are not set, and ~/.clawdbot/asana/credentials.json is missing. Run: node skills/asana/scripts/configure.mjs --client-id ... --client-secret ...',
+    );
   }
 
   const data = await postForm(TOKEN_URL, {
@@ -182,27 +209,46 @@ async function main() {
   const { cmd, flags, positionals } = parseArgs(process.argv.slice(2));
   if (!cmd) {
     die(
-      'Command required: me | workspaces | projects | tasks-in-project | tasks-assigned | search-tasks | task | update-task | complete-task | comment | create-task',
+      'Command required: me | workspaces | list-workspaces | set-default-workspace | projects | tasks-in-project | tasks-assigned | search-tasks | task | update-task | complete-task | comment | create-task',
     );
   }
 
   let tok = loadToken();
   tok = await ensureAccessToken(tok);
   const accessToken = tok.access_token;
+  const cfg = loadConfig();
+
+  const getWorkspaceOrDefault = () => {
+    const w = flags.workspace || cfg.default_workspace_gid;
+    return w ? String(w) : null;
+  };
 
   if (cmd === 'me') {
     printJson(await asanaGet('/users/me', accessToken));
     return;
   }
 
-  if (cmd === 'workspaces') {
+  if (cmd === 'workspaces' || cmd === 'list-workspaces') {
     printJson(await asanaGet('/workspaces', accessToken));
     return;
   }
 
+  if (cmd === 'set-default-workspace') {
+    const workspace = flags.workspace || positionals[0];
+    if (!workspace) die('Usage: set-default-workspace --workspace <workspace_gid>');
+
+    const outPath = configPath();
+    const next = { ...cfg, default_workspace_gid: String(workspace) };
+    fs.mkdirSync(path.dirname(outPath), { recursive: true });
+    fs.writeFileSync(outPath, JSON.stringify(next, null, 2));
+    console.log(`Saved default workspace to: ${outPath}`);
+    console.log(`default_workspace_gid = ${next.default_workspace_gid}`);
+    return;
+  }
+
   if (cmd === 'projects') {
-    const workspace = flags.workspace;
-    if (!workspace) die('Missing --workspace <workspace_gid>');
+    const workspace = getWorkspaceOrDefault();
+    if (!workspace) die('Missing --workspace <workspace_gid> (or set default via set-default-workspace)');
     const optFields = flags.opt_fields || 'gid,name,resource_type,archived,public';
     const r = await asanaGet('/projects', accessToken, {
       workspace,
@@ -229,8 +275,8 @@ async function main() {
   }
 
   if (cmd === 'tasks-assigned') {
-    const workspace = flags.workspace;
-    if (!workspace) die('Missing --workspace <workspace_gid>');
+    const workspace = getWorkspaceOrDefault();
+    if (!workspace) die('Missing --workspace <workspace_gid> (or set default via set-default-workspace)');
     const assignee = flags.assignee || 'me';
     const assigneeGid = assignee === 'me' ? await resolveMeGid(accessToken) : String(assignee);
     const optFields =
@@ -249,8 +295,8 @@ async function main() {
   }
 
   if (cmd === 'search-tasks') {
-    const workspace = flags.workspace;
-    if (!workspace) die('Missing --workspace <workspace_gid>');
+    const workspace = getWorkspaceOrDefault();
+    if (!workspace) die('Missing --workspace <workspace_gid> (or set default via set-default-workspace)');
     // Asana search endpoint uses query params.
     // Common params: text, assignee.any, projects.any, sections.any, completed, completed_on.after/before, due_on.after/before, etc.
     const query = { ...flags };

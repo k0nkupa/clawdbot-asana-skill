@@ -23,8 +23,15 @@ In Asana Developer Console (My apps):
 - Set redirect URI to the OOB value (manual code):
   - `urn:ietf:wg:oauth:2.0:oob`
 
-### 1) Export credentials
-Set environment variables (shell/session):
+### 1) Provide credentials (two options)
+
+**Option A (recommended for Clawdbot):** save to a local credentials file:
+```bash
+node skills/asana/scripts/configure.mjs --client-id "..." --client-secret "..."
+```
+This writes `~/.clawdbot/asana/credentials.json`.
+
+**Option B:** set environment variables (shell/session):
 - `ASANA_CLIENT_ID`
 - `ASANA_CLIENT_SECRET`
 
@@ -53,12 +60,22 @@ node asana/scripts/asana_api.mjs me
 
 List workspaces:
 ```bash
-node asana/scripts/asana_api.mjs workspaces
+node skills/asana/scripts/asana_api.mjs workspaces
 ```
 
-List projects in a workspace:
+Set a default workspace (optional):
 ```bash
-node asana/scripts/asana_api.mjs projects --workspace <workspace_gid>
+node skills/asana/scripts/asana_api.mjs set-default-workspace --workspace <workspace_gid>
+```
+After that, you can omit `--workspace` for commands that support it.
+
+List projects in a workspace (explicit):
+```bash
+node skills/asana/scripts/asana_api.mjs projects --workspace <workspace_gid>
+```
+List projects using the default workspace:
+```bash
+node skills/asana/scripts/asana_api.mjs projects
 ```
 
 List tasks in a project:
@@ -68,7 +85,11 @@ node asana/scripts/asana_api.mjs tasks-in-project --project <project_gid>
 
 List tasks assigned to me (workspace required by Asana):
 ```bash
-node asana/scripts/asana_api.mjs tasks-assigned --workspace <workspace_gid> --assignee me
+node skills/asana/scripts/asana_api.mjs tasks-assigned --workspace <workspace_gid> --assignee me
+```
+Or using the default workspace:
+```bash
+node skills/asana/scripts/asana_api.mjs tasks-assigned --assignee me
 ```
 
 Search tasks (advanced search):
