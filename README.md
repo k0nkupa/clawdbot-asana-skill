@@ -3,7 +3,7 @@
 Asana OAuth (local-only) + task/project commands for Clawdbot.
 
 This repo contains a small **Asana skill** (an AgentSkill folder) that you can:
-- use locally on your Clawdbot host (Mac mini)
+- use locally on your Clawdbot host
 - publish/share so other Clawdbot users can install and run it
 
 It uses **Asana OAuth 2.0 Authorization Code Grant** with an **out-of-band (OOB) / manual code paste** redirect URI:
@@ -30,7 +30,7 @@ Tokens and config are stored locally under:
 
 ## Prerequisites
 
-- Node.js 18+ (Node 20+ recommended)
+- Node.js 22+
 - An Asana account with access to the workspace(s) you want
 
 ---
