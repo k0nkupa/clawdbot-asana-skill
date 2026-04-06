@@ -35,7 +35,7 @@ function parseArgs(argv) {
 }
 
 function tokenPath() {
-  return path.join(os.homedir(), '.clawdbot', 'asana', 'token.json');
+  return path.join(os.homedir(), '.openclaw', 'asana', 'token.json');
 }
 
 function ensureDir(p) {
@@ -84,9 +84,9 @@ async function main() {
   let clientId = process.env.ASANA_CLIENT_ID;
   let clientSecret = process.env.ASANA_CLIENT_SECRET;
 
-  // Optional fallback to ~/.clawdbot/asana/credentials.json
+  // Optional fallback to ~/.openclaw/asana/credentials.json
   try {
-    const credPath = path.join(os.homedir(), '.clawdbot', 'asana', 'credentials.json');
+    const credPath = path.join(os.homedir(), '.openclaw', 'asana', 'credentials.json');
     const creds = JSON.parse(fs.readFileSync(credPath, 'utf-8'));
     clientId = clientId || creds.client_id;
     clientSecret = clientSecret || creds.client_secret;
@@ -95,7 +95,7 @@ async function main() {
   }
 
   if (!cmd) die('Command required: authorize | token');
-  if (!clientId) die('Missing ASANA_CLIENT_ID (or ~/.clawdbot/asana/credentials.json)');
+  if (!clientId) die('Missing ASANA_CLIENT_ID (or ~/.openclaw/asana/credentials.json)');
 
   if (cmd === 'authorize') {
     const scope = flags.scope || 'default';

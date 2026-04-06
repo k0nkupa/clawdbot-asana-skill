@@ -1,9 +1,14 @@
 #!/usr/bin/env node
 /**
- * Minimal Asana API CLI with OAuth refresh.
+ * Minimal Asana API CLI with PAT-first auth and optional OAuth refresh.
  *
- * Reads token from ~/.clawdbot/asana/token.json
- * Requires ASANA_CLIENT_ID + ASANA_CLIENT_SECRET for refresh.
+ * Auth priority:
+ * 1. ASANA_PAT env var
+ * 2. ~/.openclaw/asana/config.json -> { "pat": "..." }
+ * 3. ~/.openclaw/asana/token.json OAuth token
+ *
+ * OAuth refresh requires ASANA_CLIENT_ID + ASANA_CLIENT_SECRET,
+ * or ~/.openclaw/asana/credentials.json.
  */
 
 import fs from 'node:fs';
@@ -18,34 +23,59 @@ function die(msg) {
   process.exit(1);
 }
 
+function asanaDir() {
+  return path.join(os.homedir(), '.openclaw', 'asana');
+}
+
 function tokenPath() {
-  return path.join(os.homedir(), '.clawdbot', 'asana', 'token.json');
+  return path.join(asanaDir(), 'token.json');
 }
 
 function configPath() {
-  return path.join(os.homedir(), '.clawdbot', 'asana', 'config.json');
+  return path.join(asanaDir(), 'config.json');
+}
+
+function credentialsPath() {
+  return path.join(asanaDir(), 'credentials.json');
+}
+
+function loadJsonIfExists(p, fallback = {}) {
+  if (!fs.existsSync(p)) return fallback;
+  try {
+    return JSON.parse(fs.readFileSync(p, 'utf-8'));
+  } catch {
+    return fallback;
+  }
 }
 
 function loadConfig() {
-  const p = configPath();
-  if (!fs.existsSync(p)) return {};
-  try {
-    return JSON.parse(fs.readFileSync(p, 'utf-8')) || {};
-  } catch {
-    return {};
-  }
+  return loadJsonIfExists(configPath(), {});
 }
 
 function loadToken() {
   const p = tokenPath();
-  if (!fs.existsSync(p)) die(`Token file not found: ${p}. Run oauth_oob.mjs token first.`);
-  return JSON.parse(fs.readFileSync(p, 'utf-8'));
+  if (!fs.existsSync(p)) return null;
+  return loadJsonIfExists(p, null);
 }
 
 function saveToken(tok) {
   const p = tokenPath();
   fs.mkdirSync(path.dirname(p), { recursive: true });
   fs.writeFileSync(p, JSON.stringify(tok, null, 2));
+}
+
+function saveConfig(cfg) {
+  const p = configPath();
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, JSON.stringify(cfg, null, 2));
+}
+
+function resolvePat(cfg) {
+  const envPat = process.env.ASANA_PAT && String(process.env.ASANA_PAT).trim();
+  if (envPat) return envPat;
+  const filePat = cfg?.pat && String(cfg.pat).trim();
+  if (filePat) return filePat;
+  return null;
 }
 
 function urlEncode(params) {
@@ -75,34 +105,28 @@ async function postForm(url, params) {
 }
 
 async function ensureAccessToken(token) {
+  if (!token) return null;
+
   const now = Date.now();
   const expiresAt = token.expires_at_ms;
   if (typeof token.access_token !== 'string') die('Token missing access_token');
 
-  // Refresh if expiring within 2 minutes
   if (expiresAt && now < expiresAt - 120_000) return token;
 
   if (!token.refresh_token) {
-    // Some flows may not return refresh_token; in that case user must re-auth.
     return token;
   }
 
   let clientId = process.env.ASANA_CLIENT_ID;
   let clientSecret = process.env.ASANA_CLIENT_SECRET;
   if (!clientId || !clientSecret) {
-    // Fallback to ~/.clawdbot/asana/credentials.json
-    try {
-      const credPath = path.join(os.homedir(), '.clawdbot', 'asana', 'credentials.json');
-      const creds = JSON.parse(fs.readFileSync(credPath, 'utf-8'));
-      clientId = clientId || creds.client_id;
-      clientSecret = clientSecret || creds.client_secret;
-    } catch {
-      // ignore
-    }
+    const creds = loadJsonIfExists(credentialsPath(), {});
+    clientId = clientId || creds.client_id;
+    clientSecret = clientSecret || creds.client_secret;
   }
   if (!clientId || !clientSecret) {
     die(
-      'Token needs refresh but ASANA_CLIENT_ID/ASANA_CLIENT_SECRET are not set, and ~/.clawdbot/asana/credentials.json is missing. Run: node skills/asana/scripts/configure.mjs --client-id ... --client-secret ...',
+      'OAuth token needs refresh but ASANA_CLIENT_ID/ASANA_CLIENT_SECRET are not set, and ~/.openclaw/asana/credentials.json is missing. Either set ASANA_PAT, run configure.mjs for PAT mode, or configure OAuth credentials.',
     );
   }
 
@@ -122,6 +146,21 @@ async function ensureAccessToken(token) {
 
   saveToken(refreshed);
   return refreshed;
+}
+
+async function resolveBearerToken() {
+  const cfg = loadConfig();
+  const pat = resolvePat(cfg);
+  if (pat) return pat;
+
+  let tok = loadToken();
+  if (!tok) {
+    die(
+      `No Asana auth configured. Set ASANA_PAT, save {"pat":"..."} to ${configPath()}, or run oauth_oob.mjs token for OAuth setup.`,
+    );
+  }
+  tok = await ensureAccessToken(tok);
+  return tok.access_token;
 }
 
 async function asanaGet(pathname, token, query) {
@@ -209,14 +248,29 @@ async function main() {
   const { cmd, flags, positionals } = parseArgs(process.argv.slice(2));
   if (!cmd) {
     die(
-      'Command required: me | workspaces | list-workspaces | set-default-workspace | projects | tasks-in-project | tasks-assigned | search-tasks | task | update-task | complete-task | comment | create-task',
+      'Command required: me | workspaces | list-workspaces | set-default-workspace | set-pat | clear-pat | projects | tasks-in-project | tasks-assigned | search-tasks | task | update-task | complete-task | comment | create-task',
     );
   }
 
-  let tok = loadToken();
-  tok = await ensureAccessToken(tok);
-  const accessToken = tok.access_token;
   const cfg = loadConfig();
+
+  if (cmd === 'set-pat') {
+    const pat = flags.pat || positionals[0];
+    if (!pat) die('Usage: set-pat <asana_pat>');
+    saveConfig({ ...cfg, pat: String(pat) });
+    console.log(`Saved Asana PAT to: ${configPath()}`);
+    return;
+  }
+
+  if (cmd === 'clear-pat') {
+    const next = { ...cfg };
+    delete next.pat;
+    saveConfig(next);
+    console.log(`Cleared Asana PAT from: ${configPath()}`);
+    return;
+  }
+
+  const accessToken = await resolveBearerToken();
 
   const getWorkspaceOrDefault = () => {
     const w = flags.workspace || cfg.default_workspace_gid;
@@ -237,11 +291,9 @@ async function main() {
     const workspace = flags.workspace || positionals[0];
     if (!workspace) die('Usage: set-default-workspace --workspace <workspace_gid>');
 
-    const outPath = configPath();
     const next = { ...cfg, default_workspace_gid: String(workspace) };
-    fs.mkdirSync(path.dirname(outPath), { recursive: true });
-    fs.writeFileSync(outPath, JSON.stringify(next, null, 2));
-    console.log(`Saved default workspace to: ${outPath}`);
+    saveConfig(next);
+    console.log(`Saved default workspace to: ${configPath()}`);
     console.log(`default_workspace_gid = ${next.default_workspace_gid}`);
     return;
   }
@@ -285,7 +337,6 @@ async function main() {
     const r = await asanaGet('/tasks', accessToken, {
       workspace,
       assignee: assigneeGid,
-      // common filter to exclude completed; Asana accepts special values like "now"
       completed_since: flags.completed_since || 'now',
       opt_fields: optFields,
       limit: flags.limit || 100,
@@ -297,11 +348,8 @@ async function main() {
   if (cmd === 'search-tasks') {
     const workspace = getWorkspaceOrDefault();
     if (!workspace) die('Missing --workspace <workspace_gid> (or set default via set-default-workspace)');
-    // Asana search endpoint uses query params.
-    // Common params: text, assignee.any, projects.any, sections.any, completed, completed_on.after/before, due_on.after/before, etc.
     const query = { ...flags };
     delete query._;
-    // normalize a couple convenience flags
     if (query.assignee === 'me') query['assignee.any'] = await resolveMeGid(accessToken);
     if (query.project) query['projects.any'] = String(query.project);
     delete query.assignee;
@@ -360,7 +408,6 @@ async function main() {
     const text = flags.text;
     if (!gid) die('Usage: comment <task_gid> --text "..."');
     if (!text) die('Missing --text');
-    // Stories API: POST /tasks/{task_gid}/stories
     const r = await asanaPost(`/tasks/${gid}/stories`, accessToken, { data: { text: String(text) } });
     printJson(r);
     return;

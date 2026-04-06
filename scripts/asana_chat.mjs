@@ -2,7 +2,7 @@
 /**
  * Very small helper to map chat-ish input into an asana_api.mjs command.
  *
- * This is NOT required for Clawdbot, but makes it easy to support both:
+ * This is NOT required for OpenClaw, but makes it easy to support both:
  * - explicit commands: "/asana projects"
  * - natural language: "list tasks assigned to me"
  *
