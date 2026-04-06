@@ -3,12 +3,12 @@
  * Minimal Asana API CLI with PAT-first auth and optional OAuth refresh.
  *
  * Auth priority:
- * 1. ASANA_PAT env var
+ * 1. --token / ASANA_PAT env var
  * 2. ~/.openclaw/asana/config.json -> { "pat": "..." }
  * 3. ~/.openclaw/asana/token.json OAuth token
  *
- * OAuth refresh requires ASANA_CLIENT_ID + ASANA_CLIENT_SECRET,
- * or ~/.openclaw/asana/credentials.json.
+ * OAuth refresh requires --client-id + --client-secret,
+ * or ASANA_CLIENT_ID + ASANA_CLIENT_SECRET.
  */
 
 import fs from 'node:fs';
@@ -33,10 +33,6 @@ function tokenPath() {
 
 function configPath() {
   return path.join(asanaDir(), 'config.json');
-}
-
-function credentialsPath() {
-  return path.join(asanaDir(), 'credentials.json');
 }
 
 function loadJsonIfExists(p, fallback = {}) {
@@ -104,7 +100,7 @@ async function postForm(url, params) {
   return data;
 }
 
-async function ensureAccessToken(token) {
+async function ensureAccessToken(token, opts = {}) {
   if (!token) return null;
 
   const now = Date.now();
@@ -117,16 +113,11 @@ async function ensureAccessToken(token) {
     return token;
   }
 
-  let clientId = process.env.ASANA_CLIENT_ID;
-  let clientSecret = process.env.ASANA_CLIENT_SECRET;
-  if (!clientId || !clientSecret) {
-    const creds = loadJsonIfExists(credentialsPath(), {});
-    clientId = clientId || creds.client_id;
-    clientSecret = clientSecret || creds.client_secret;
-  }
+  let clientId = opts.clientId || process.env.ASANA_CLIENT_ID;
+  let clientSecret = opts.clientSecret || process.env.ASANA_CLIENT_SECRET;
   if (!clientId || !clientSecret) {
     die(
-      'OAuth token needs refresh but ASANA_CLIENT_ID/ASANA_CLIENT_SECRET are not set, and ~/.openclaw/asana/credentials.json is missing. Either set ASANA_PAT, run configure.mjs for PAT mode, or configure OAuth credentials.',
+      'OAuth token needs refresh but client credentials are not set. Pass --client-id and --client-secret, or set ASANA_CLIENT_ID and ASANA_CLIENT_SECRET. Otherwise use ASANA_PAT.',
     );
   }
 
@@ -148,7 +139,10 @@ async function ensureAccessToken(token) {
   return refreshed;
 }
 
-async function resolveBearerToken() {
+async function resolveBearerToken(flags = {}) {
+  const directToken = flags.token && String(flags.token).trim();
+  if (directToken) return directToken;
+
   const cfg = loadConfig();
   const pat = resolvePat(cfg);
   if (pat) return pat;
@@ -156,10 +150,13 @@ async function resolveBearerToken() {
   let tok = loadToken();
   if (!tok) {
     die(
-      `No Asana auth configured. Set ASANA_PAT, save {"pat":"..."} to ${configPath()}, or run oauth_oob.mjs token for OAuth setup.`,
+      `No Asana auth configured. Pass --token, set ASANA_PAT, save {"pat":"..."} to ${configPath()}, or run oauth_oob.mjs token for OAuth setup.`,
     );
   }
-  tok = await ensureAccessToken(tok);
+  tok = await ensureAccessToken(tok, {
+    clientId: flags.client_id,
+    clientSecret: flags.client_secret,
+  });
   return tok.access_token;
 }
 
@@ -270,7 +267,7 @@ async function main() {
     return;
   }
 
-  const accessToken = await resolveBearerToken();
+  const accessToken = await resolveBearerToken(flags);
 
   const getWorkspaceOrDefault = () => {
     const w = flags.workspace || cfg.default_workspace_gid;

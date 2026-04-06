@@ -81,21 +81,11 @@ async function postForm(url, params) {
 
 async function main() {
   const { cmd, flags } = parseArgs(process.argv.slice(2));
-  let clientId = process.env.ASANA_CLIENT_ID;
-  let clientSecret = process.env.ASANA_CLIENT_SECRET;
-
-  // Optional fallback to ~/.openclaw/asana/credentials.json
-  try {
-    const credPath = path.join(os.homedir(), '.openclaw', 'asana', 'credentials.json');
-    const creds = JSON.parse(fs.readFileSync(credPath, 'utf-8'));
-    clientId = clientId || creds.client_id;
-    clientSecret = clientSecret || creds.client_secret;
-  } catch {
-    // ignore
-  }
+  const clientId = (flags['client-id'] || process.env.ASANA_CLIENT_ID || '').toString().trim();
+  const clientSecret = (flags['client-secret'] || process.env.ASANA_CLIENT_SECRET || '').toString().trim();
 
   if (!cmd) die('Command required: authorize | token');
-  if (!clientId) die('Missing ASANA_CLIENT_ID (or ~/.openclaw/asana/credentials.json)');
+  if (!clientId) die('Missing client ID. Pass --client-id or set ASANA_CLIENT_ID.');
 
   if (cmd === 'authorize') {
     const scope = flags.scope || 'default';
@@ -112,12 +102,12 @@ async function main() {
     console.log('Open this URL in your browser, click Allow, then copy the code:');
     console.log(url);
     console.log('\nThen run:');
-    console.log(`node asana/scripts/oauth_oob.mjs token --code "PASTE_CODE"`);
+    console.log(`node asana/scripts/oauth_oob.mjs token --client-id "${clientId}" --client-secret "PASTE_CLIENT_SECRET" --code "PASTE_CODE"`);
     return;
   }
 
   if (cmd === 'token') {
-    if (!clientSecret) die('Missing ASANA_CLIENT_SECRET');
+    if (!clientSecret) die('Missing client secret. Pass --client-secret or set ASANA_CLIENT_SECRET.');
     const code = flags.code;
     if (!code || typeof code !== 'string') die('Missing --code');
 

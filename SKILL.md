@@ -19,7 +19,7 @@ This skill provides a lightweight Asana CLI for OpenClaw.
 Recommended auth is **PAT-first**.
 
 Priority order:
-1. `ASANA_PAT` environment variable
+1. `--token` or `ASANA_PAT`
 2. `~/.openclaw/asana/config.json` with `{ "pat": "..." }`
 3. OAuth token at `~/.openclaw/asana/token.json`
 
@@ -39,8 +39,8 @@ Or set `ASANA_PAT` in OpenClaw skill config.
 
 ```bash
 node scripts/configure.mjs --mode oauth --client-id "$ASANA_CLIENT_ID" --client-secret "$ASANA_CLIENT_SECRET"
-node scripts/oauth_oob.mjs auth-url
-node scripts/oauth_oob.mjs token --code "..."
+node scripts/oauth_oob.mjs authorize --client-id "$ASANA_CLIENT_ID"
+node scripts/oauth_oob.mjs token --client-id "$ASANA_CLIENT_ID" --client-secret "$ASANA_CLIENT_SECRET" --code "..."
 ```
 
 ## Storage
@@ -48,7 +48,6 @@ node scripts/oauth_oob.mjs token --code "..."
 This skill stores local state under:
 
 - `~/.openclaw/asana/config.json`
-- `~/.openclaw/asana/credentials.json`
 - `~/.openclaw/asana/token.json`
 
 ## Commands
