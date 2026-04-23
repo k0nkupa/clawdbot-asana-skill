@@ -31,3 +31,7 @@ node scripts/oauth_oob.mjs token --code "..."
 - `~/.openclaw/asana/config.json`
 - `~/.openclaw/asana/credentials.json`
 - `~/.openclaw/asana/token.json`
+
+## Download History
+
+[![Download History](https://skill-history.com/chart/k0nkupa/asana.svg)](https://skill-history.com/k0nkupa/asana)
